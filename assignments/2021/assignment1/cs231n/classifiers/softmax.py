@@ -89,17 +89,12 @@ def softmax_loss_vectorized(W, X, y, reg):
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
     scores = np.dot(X, W) # Shape (N, C)
-    #print(f"scores.shape={scores.shape}")
     num_classes = W.shape[1] # C=10
     num_train = X.shape[0]   # N=500
     num_data = X.shape[1]    # D=3073
     
-    print(f"num_train={num_train}, num_classes={num_classes}, num_data={num_data}")
-    
     # Normalize to avoid fractions of large exponents
     scores -= np.max(scores,axis=1).reshape(-1,1) # Shape (N, 1)
-    
-    correct_class_score = scores[range(num_train),y].reshape(-1,1) # Shape (N, 1)
     
     loss = np.sum(np.log(np.sum(np.exp(scores), axis=1)))
     loss -= scores[range(num_train), y].sum() 
