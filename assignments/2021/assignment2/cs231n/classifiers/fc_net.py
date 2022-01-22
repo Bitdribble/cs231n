@@ -74,7 +74,18 @@ class FullyConnectedNet(object):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        assert self.num_layers > 1
+
+        for i in range(1, self.num_layers):
+            dim = hidden_dims[i-2]
+            dim_next = hidden_dims[i-1]
+            if i == 1:
+                dim = input_dim
+            if i == self.num_layers:
+                dim_next = num_classes
+                
+            self.params[f"W{i}"] = np.random.normal(0, weight_scale, size=(dim, dim_next))
+            self.params[f"b{i}"] = np.zeros((dim_next))
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
@@ -148,7 +159,12 @@ class FullyConnectedNet(object):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        N = X.shape[0]
+        D = sum(list(X[0].shape))
+        X1, cache1 = affine_relu_forward(X, self.params["W1"], self.params["b1"])
+        X2, cache2 = affine_forward(X1, self.params["W2"], self.params["b2"])
+        
+        scores = X2
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
@@ -175,7 +191,16 @@ class FullyConnectedNet(object):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        loss, dloss = softmax_loss(X2, y)
+        
+        loss += self.reg * 0.5 * (np.sum(self.params["W1"] * self.params["W1"]) + 
+                                  np.sum(self.params["W2"] * self.params["W2"]))
+
+        dX2, grads["W2"], grads["b2"] = affine_backward(dloss, cache2)
+        dX, grads["W1"], grads["b1"] = affine_relu_backward(dX2, cache1)
+        
+        grads["W2"] += self.reg * self.params["W2"]
+        grads["W1"] += self.reg * self.params["W1"]
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################

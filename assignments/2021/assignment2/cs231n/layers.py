@@ -25,7 +25,8 @@ def affine_forward(x, w, b):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    x_flat = x.reshape(-1, np.prod(x[0].shape))
+    out = np.dot(x_flat, w) + b
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -57,7 +58,12 @@ def affine_backward(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    x_flat = x.reshape(-1, np.prod(x[0].shape))
+   
+    db = dout.sum(axis=0)
+    dw = np.dot(x_flat.T, dout)
+    dx_flat = np.dot(dout, w.T)
+    dx = dx_flat.reshape(x.shape)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -82,7 +88,7 @@ def relu_forward(x):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    out = np.maximum(0, x)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -108,7 +114,9 @@ def relu_backward(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    x1 = np.zeros(x.shape)
+    x1[x > 0] = 1
+    dx = x1 * dout
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -137,7 +145,19 @@ def softmax_loss(x, y):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    num_train = x.shape[0]
+
+    # Normalize to avoid fractions of large exponents
+    # Note: doing x -= np.max(x,axis=1).reshape(-1,1) corrupts x!!
+    x = x - np.max(x,axis=1).reshape(-1,1) # Shape (N, 1)
+    
+    loss = np.sum(np.log(np.sum(np.exp(x), axis=1)))
+    loss -= x[range(num_train), y].sum()
+    loss /= num_train
+    
+    coeff_X = np.exp(x) / np.exp(x).sum(axis=1).reshape(-1,1) # (1), shape (N, C)
+    coeff_X[range(num_train),y] -= 1 # (2)
+    dx = coeff_X / num_train
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
