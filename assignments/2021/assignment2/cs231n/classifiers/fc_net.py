@@ -76,13 +76,15 @@ class FullyConnectedNet(object):
 
         assert self.num_layers > 1
 
-        for i in range(1, self.num_layers):
-            dim = hidden_dims[i-2]
-            dim_next = hidden_dims[i-1]
+        for i in range(1, self.num_layers+1):
             if i == 1:
                 dim = input_dim
+            else:
+                dim = hidden_dims[i-2]
             if i == self.num_layers:
                 dim_next = num_classes
+            else:
+                dim_next = hidden_dims[i-1]
                 
             self.params[f"W{i}"] = np.random.normal(0, weight_scale, size=(dim, dim_next))
             self.params[f"b{i}"] = np.zeros((dim_next))
@@ -161,10 +163,17 @@ class FullyConnectedNet(object):
 
         N = X.shape[0]
         D = sum(list(X[0].shape))
-        X1, cache1 = affine_relu_forward(X, self.params["W1"], self.params["b1"])
-        X2, cache2 = affine_forward(X1, self.params["W2"], self.params["b2"])
         
-        scores = X2
+        # The cache dictionary
+        cache = {}
+
+        for i in range(1, self.num_layers):
+            X, cache[i] = affine_relu_forward(X, self.params[f"W{i}"], self.params[f"b{i}"])
+
+        i += 1 # Go to last layer
+        X, cache[i] = affine_forward(X, self.params[f"W{i}"], self.params[f"b{i}"])
+            
+        scores = X
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
@@ -191,16 +200,19 @@ class FullyConnectedNet(object):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        loss, dloss = softmax_loss(X2, y)
+        loss, dX = softmax_loss(X, y)
         
-        loss += self.reg * 0.5 * (np.sum(self.params["W1"] * self.params["W1"]) + 
-                                  np.sum(self.params["W2"] * self.params["W2"]))
+        for i in range(1, self.num_layers+1):
+            loss += self.reg * 0.5 * np.sum(self.params[f"W{i}"] * self.params[f"W{i}"])
 
-        dX2, grads["W2"], grads["b2"] = affine_backward(dloss, cache2)
-        dX, grads["W1"], grads["b1"] = affine_relu_backward(dX2, cache1)
-        
-        grads["W2"] += self.reg * self.params["W2"]
-        grads["W1"] += self.reg * self.params["W1"]
+        for i in range(self.num_layers, 0, -1):
+            if i == self.num_layers:
+                dX, grads[f"W{i}"], grads[f"b{i}"] = affine_backward(dX, cache[i])
+            else:
+                dX, grads[f"W{i}"], grads[f"b{i}"] = affine_relu_backward(dX, cache[i])
+       
+        for i in range(1, self.num_layers+1):
+            grads[f"W{i}"] += self.reg * self.params[f"W{i}"]
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
