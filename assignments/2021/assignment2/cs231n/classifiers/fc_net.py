@@ -167,12 +167,13 @@ class FullyConnectedNet(object):
         # The cache dictionary
         cache = {}
 
-        for i in range(1, self.num_layers):
-            X, cache[i] = affine_relu_forward(X, self.params[f"W{i}"], self.params[f"b{i}"])
+        for i in range(1, self.num_layers+1):
+            if i < self.num_layers:
+                f_forward = affine_relu_forward
+            else:
+                f_forward = affine_forward
+            X, cache[i] = f_forward(X, self.params[f"W{i}"], self.params[f"b{i}"])
 
-        i += 1 # Go to last layer
-        X, cache[i] = affine_forward(X, self.params[f"W{i}"], self.params[f"b{i}"])
-            
         scores = X
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
@@ -206,10 +207,11 @@ class FullyConnectedNet(object):
             loss += self.reg * 0.5 * np.sum(self.params[f"W{i}"] * self.params[f"W{i}"])
 
         for i in range(self.num_layers, 0, -1):
-            if i == self.num_layers:
-                dX, grads[f"W{i}"], grads[f"b{i}"] = affine_backward(dX, cache[i])
+            if i < self.num_layers:
+                f_backward = affine_relu_backward
             else:
-                dX, grads[f"W{i}"], grads[f"b{i}"] = affine_relu_backward(dX, cache[i])
+                f_backward = affine_backward
+            dX, grads[f"W{i}"], grads[f"b{i}"] = f_backward(dX, cache[i])
        
         for i in range(1, self.num_layers+1):
             grads[f"W{i}"] += self.reg * self.params[f"W{i}"]
