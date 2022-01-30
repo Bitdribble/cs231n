@@ -187,6 +187,13 @@ class FullyConnectedNet(object):
                                                          self.params[W_i], self.params[b_i],
                                                          self.params[gamma_i], self.params[beta_i],
                                                          self.bn_params[i-1])
+                elif self.normalization == "layernorm":
+                    gamma_i = f"gamma{i}"
+                    beta_i = f"beta{i}"
+                    X, cache[i] = affine_ln_relu_forward(X, 
+                                                         self.params[W_i], self.params[b_i],
+                                                         self.params[gamma_i], self.params[beta_i],
+                                                         self.bn_params[i-1])
                 else:
                     X, cache[i] = affine_relu_forward(X, self.params[W_i], self.params[b_i])
             else:
@@ -227,12 +234,14 @@ class FullyConnectedNet(object):
         for i in range(self.num_layers, 0, -1):
             W_i = f"W{i}"
             b_i = f"b{i}"
+            gamma_i = f"gamma{i}"
+            beta_i = f"beta{i}"
             
             if i < self.num_layers:
                 if self.normalization == "batchnorm":
-                    gamma_i = f"gamma{i}"
-                    beta_i = f"beta{i}"
                     dX, grads[W_i], grads[b_i], grads[gamma_i], grads[beta_i] = affine_bn_relu_backward(dX, cache[i])
+                elif self.normalization == "layernorm":
+                    dX, grads[W_i], grads[b_i], grads[gamma_i], grads[beta_i] = affine_ln_relu_backward(dX, cache[i])
                 else:
                     dX, grads[W_i], grads[b_i] = affine_relu_backward(dX, cache[i])
             else:
