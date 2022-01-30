@@ -409,7 +409,16 @@ def layernorm_forward(x, gamma, beta, ln_param):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    sample_mean = np.expand_dims(x.mean(axis=1), axis=1) # Unsqueeze to match shape of x
+    sample_var = np.expand_dims(x.var(axis=1), axis=1)
+        
+    sqrt = np.sqrt(eps + sample_var)
+    inv = 1. / sqrt
+    xmu = x - sample_mean
+    xhat = xmu*inv
+    out = xhat*gamma + beta
+        
+    cache = x, sqrt, inv, xmu, xhat, gamma, beta, out
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -443,7 +452,13 @@ def layernorm_backward(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    x, sqrt, inv, xmu, xhat, gamma, beta, out = cache
+    N, D = dout.shape
+
+    dbeta = dout.sum(axis=0)
+    dgamma = (dout*xhat).sum(axis=0)
+    dxhat = dout*gamma
+    dx = 1.0/D * inv * (D*dxhat - np.expand_dims(np.sum(dxhat, axis=1),axis=1) - xhat*np.expand_dims(np.sum(dxhat*xhat, axis=1),axis=1))
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
