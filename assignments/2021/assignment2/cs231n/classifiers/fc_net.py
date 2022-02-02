@@ -73,7 +73,6 @@ class FullyConnectedNet(object):
         # parameters should be initialized to zeros.                               #
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-
         assert self.num_layers > 1
 
         for i in range(1, self.num_layers+1):
@@ -175,6 +174,9 @@ class FullyConnectedNet(object):
         
         # The cache dictionary
         cache = {}
+        
+        # The dropout cache dictionary
+        dropout_cache = {}
 
         for i in range(1, self.num_layers+1):
             W_i = f"W{i}"
@@ -196,6 +198,9 @@ class FullyConnectedNet(object):
                                                          self.bn_params[i-1])
                 else:
                     X, cache[i] = affine_relu_forward(X, self.params[W_i], self.params[b_i])
+                    
+                if self.use_dropout:
+                    X, dropout_cache[i] = dropout_forward(X, self.dropout_param)
             else:
                 X, cache[i] = affine_forward(X, self.params[W_i], self.params[b_i])
 
@@ -238,6 +243,8 @@ class FullyConnectedNet(object):
             beta_i = f"beta{i}"
             
             if i < self.num_layers:
+                if self.use_dropout:
+                    dX = dropout_backward(dX, dropout_cache[i])
                 if self.normalization == "batchnorm":
                     dX, grads[W_i], grads[b_i], grads[gamma_i], grads[beta_i] = affine_bn_relu_backward(dX, cache[i])
                 elif self.normalization == "layernorm":
