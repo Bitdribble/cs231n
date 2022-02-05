@@ -793,7 +793,45 @@ def spatial_batchnorm_forward(x, gamma, beta, bn_param):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    mode = bn_param['mode']
+    eps = bn_param.get('eps', 1e-5)
+    momentum = bn_param.get('momentum', 0.9)
+
+    N, C, H, W = x.shape
+    running_mean = bn_param.get('running_mean', np.zeros((1, C, 1, 1), dtype=x.dtype))
+    running_var = bn_param.get('running_var', np.zeros((1, C, 1, 1), dtype=x.dtype))
+
+    if mode == 'train':
+        # Mean
+        mu = np.mean(x, axis=(0, 2, 3)).reshape(1, C, 1, 1)
+        # Variance
+        var = 1 / float(N * H * W) * np.sum((x - mu) ** 2, axis=(0, 2, 3)).reshape(1, C, 1, 1)
+        # Normalized Data
+        x_hat = (x - mu) / np.sqrt(var + eps)
+        # Scale and Shift
+        y = gamma.reshape(1, C, 1, 1) * x_hat + beta.reshape(1, C, 1, 1)
+        out = y
+
+        # Make the record of means and variances in running parameters
+        running_mean = momentum * running_mean + (1 - momentum) * mu
+        running_var = momentum * running_var + (1 - momentum) * var
+
+        cache = (x_hat, mu, var, eps, gamma, beta, x)
+
+    elif mode == 'test':
+        # Normalized Data
+        x_hat = (x - running_mean) / np.sqrt(running_var + eps)
+        # Scale and Shift
+        y = gamma.reshape(1, C, 1, 1) * x_hat + beta.reshape(1, C, 1, 1)
+        out = y
+
+    else:
+        raise ValueError('Invalid forward batchnorm mode "%s"' % mode)
+
+    # Store the updated running means back into bn_param
+    bn_param['running_mean'] = running_mean
+    bn_param['running_var'] = running_var
+
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -826,7 +864,29 @@ def spatial_batchnorm_backward(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    x_hat, mu, var, eps, gamma, beta, x = cache
+    N, C, H, W = dout.shape
+
+    dbeta = np.sum(dout, axis=(0, 2, 3))
+    dgamma = np.sum(dout * x_hat, axis=(0, 2, 3))
+
+    # for dx visit this backprop diagram:
+    # https://kratzert.github.io/2016/02/12/understanding-the-gradient-flow-through-the-batch-normalization-layer.html
+
+    gamma_reshape = gamma.reshape(1, C, 1, 1)
+    beta_reshape = beta.reshape(1, C, 1, 1)
+    Nt = N * H * W
+
+    dx_hat = dout * gamma_reshape
+    dxmu1 = dx_hat * 1 / np.sqrt(var + eps)
+    divar = np.sum(dx_hat * (x - mu), axis=(0, 2, 3)).reshape(1, C, 1, 1)
+    dvar = divar * -1 / 2 * (var + eps) ** (-3 / 2)
+    dsq = 1 / Nt * np.broadcast_to(np.broadcast_to(np.squeeze(dvar), (W, H, C)).transpose(2, 1, 0), (N, C, H, W))
+    dxmu2 = 2 * (x - mu) * dsq
+    dx1 = dxmu1 + dxmu2
+    dmu = -1 * np.sum(dxmu1 + dxmu2, axis=(0, 2, 3))
+    dx2 = 1 / Nt * np.broadcast_to(np.broadcast_to(np.squeeze(dmu), (W, H, C)).transpose(2, 1, 0), (N, C, H, W))
+    dx = dx1 + dx2
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -867,7 +927,25 @@ def spatial_groupnorm_forward(x, gamma, beta, G, gn_param):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    # From https://bywmm.github.io/2018/12/05/cs231n_assignment2(ConvolutionalNetworks)/
+    N, C, H, W = x.shape
+    num = C // G
+    x_group = x.reshape(N*G, num*H*W)
+    # adapt gamma/beta to the function
+
+    # Same as LayerNorm Forward Pass
+    x_T = x_group.T
+    x_mean_T = np.mean(x_T, axis=0)
+    x_var_T = np.var(x_T, axis=0)
+
+    x_group_hat_T = (x_T - x_mean_T) / np.sqrt(x_var_T + eps)
+    x_group_hat = x_group_hat_T.T # shape of (N*G, num*H*W)
+
+    # shape of (N, C, H, W) to cal the gamma and beta
+    x_hat = x_group_hat.reshape(N, C, H, W)
+
+    out = gamma * x_hat + beta
+    cache = (G, x_T, x_hat, x_mean_T, x_var_T, gamma, beta, eps)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -896,7 +974,25 @@ def spatial_groupnorm_backward(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    N, C, H, W = dout.shape
+    G, x, x_hat, x_mean, x_var, gamma, beta, eps = cache
+    num = C // G
+    # dx_hat (N, C, H, W)
+    dx_hat = dout * gamma
+
+    # Calculation with the shape of(N*G, num*H*W)
+    dx_hat = dx_hat.reshape(N*G, num*H*W)
+    dx_hat_T = dx_hat.T
+    tmp_N = num * H * W
+
+    dx_var = -0.5 * np.sum(dx_hat_T * (x - x_mean) * np.power(x_var + eps, -3 / 2), axis=0)
+    dx_mean = np.sum(dx_hat_T * (-1 / np.sqrt(x_var + eps)), axis=0) + np.sum(-2 * dx_var * (x - x_mean), axis=0) / tmp_N
+
+    dx_group_T = dx_hat_T / np.sqrt(x_var + eps) + dx_var * 2 * (x - x_mean) / tmp_N + dx_mean / tmp_N
+    dx = dx_group_T.T.reshape(N, C, H, W)
+
+    dgamma = np.sum(dout * x_hat, axis=(0,2,3)).reshape(1, C, 1, 1)
+    dbeta = np.sum(dout, axis=(0,2,3)).reshape(1, C, 1, 1)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
