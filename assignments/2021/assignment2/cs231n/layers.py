@@ -592,8 +592,23 @@ def conv_forward_naive(x, w, b, conv_param):
     # Hint: you can use the function np.pad for padding.                      #
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
+    N, C, H, W = x.shape
+    F, C, HH, WW = w.shape
+    stride = conv_param["stride"]
+    pad = conv_param["pad"]
+    x_pad = np.pad(x, [(0,0), (0,0), (pad,pad), (pad,pad)])
+    HP = int(1 + (H + 2 * pad - HH) / stride)
+    WP = int(1 + (W + 2 * pad - WW) / stride)
+    
+    out = np.zeros((N, F, HP, WP))
+    
+    for n in range(N):
+        for f in range(F):
+            for i in range(HP):
+                for j in range(WP):
+                    out[n,f,i,j] = np.sum(
+    					x_pad[n, :, i*stride:i*stride+HH, j*stride:j*stride+WW]*w[f]) + b[f]
 
-    pass
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -621,7 +636,31 @@ def conv_backward_naive(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    x, w, b, conv_param = cache
+    N, C, H, W = x.shape
+    F, _, HH, WW = w.shape
+    _, _, H_out, W_out = dout.shape
+    stride, pad = conv_param['stride'], conv_param['pad']
+
+    x_pad = np.pad(x, ((0,), (0,), (pad,), (pad,)), mode='constant', constant_values=0)
+
+    dx_pad = np.zeros_like(x_pad)
+    dw = np.zeros_like(w)
+    db = np.zeros_like(b)
+
+    # Ref: https://github.com/MahanFathi/CS231/blob/ecab92ed8627ea0ea513a54fc2019516d446c106/assignment2/cs231n/layers.py#L483-L491
+    for n in range(N):
+    	for f in range(F):
+    		db[f] += np.sum(dout[n, f])
+    		for h_out in range(H_out):
+    			for w_out in range(W_out):
+    				dw[f] += x_pad[n, :, h_out*stride:h_out*stride+HH, w_out*stride:w_out*stride+WW] * \
+    				dout[n, f, h_out, w_out]
+    				dx_pad[n, :, h_out*stride:h_out*stride+HH, w_out*stride:w_out*stride+WW] += w[f] * \
+    				dout[n, f, h_out, w_out]
+
+    dx = dx_pad[:, :, pad:pad+H, pad:pad+W]
+
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -656,7 +695,19 @@ def max_pool_forward_naive(x, pool_param):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    N, C, H, W = x.shape
+    pool_height = pool_param['pool_height']
+    pool_width = pool_param['pool_width']
+    stride = pool_param['stride']
+    H_out = 1 + (H - pool_height) // stride
+    W_out = 1 + (W - pool_width) // stride
+    out = np.zeros((N, C, H_out, W_out))
+
+    for n in range(N):
+    	for h_out in range(H_out):
+    		for w_out in range(W_out):
+    			out[n, :, h_out, w_out] = np.max(x[n, :, h_out*stride:h_out*stride+pool_height,
+    				w_out*stride:w_out*stride+pool_width], axis=(-1, -2)) # axis can also be (1, 2)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -682,7 +733,26 @@ def max_pool_backward_naive(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    x, pool_param = cache
+    N, C, H, W = x.shape
+    pool_height = pool_param['pool_height']
+    pool_width = pool_param['pool_width']
+    stride = pool_param['stride']
+    H_out = 1 + (H - pool_height) // stride
+    W_out = 1 + (W - pool_width) // stride
+    dx = np.zeros_like(x)
+
+    for n in range(N):
+    	for c in range(C):
+    		for h in range(H_out):
+    			for w in range(W_out):
+    				# Find the index (row, col) of the max value
+    				# Ref: examples of https://docs.scipy.org/doc/numpy-1.14.0/reference/generated/numpy.argmax.html
+    				ind = np.unravel_index(np.argmax(x[n, c, h*stride:h*stride+pool_height,
+    					w*stride:w*stride+pool_width], axis=None), (pool_height, pool_width))
+    				
+    				dx[n, c, h*stride:h*stride+pool_height, w*stride:w*stride+pool_width][ind] = \
+    				dout[n, c, h, w]
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
